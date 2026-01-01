@@ -1,0 +1,46 @@
+# Build directories
+build/
+cmake-build-*/
+
+# IDE
+.vscode/
+.idea/
+.claude/
+*.swp
+*.swo
+*~
+
+# Compiled objects
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dylib
+
+# Executables
+*.exe
+*.out
+SoftwareRasterizer
+
+# CMake generated
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+compile_commands.json
+
+# Output files
+output/*.ppm
+output/*.tga
+output/*.bmp
+output/*.png
+
+# macOS
+.DS_Store
+
+# Debug
+*.dSYM/
+
+# pseudocode files
+pseudocode/
