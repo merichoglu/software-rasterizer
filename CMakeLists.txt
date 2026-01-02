@@ -30,6 +30,9 @@ set(ALL_SOURCES
     ${CORE_SOURCES}
 )
 
+# Output executable to project root
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR})
+
 # Create executable
 add_executable(${PROJECT_NAME} ${ALL_SOURCES})
 
