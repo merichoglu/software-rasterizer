@@ -60,6 +60,3 @@ endif()
 
 # Copy assets to build directory
 file(COPY ${CMAKE_SOURCE_DIR}/assets DESTINATION ${CMAKE_BINARY_DIR})
-
-# Create output directory in build
-file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/output)
