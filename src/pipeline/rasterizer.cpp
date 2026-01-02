@@ -135,32 +135,49 @@ void Rasterizer::draw_triangle(const RasterVertex& v0, const RasterVertex& v1, c
 }
 
 void Rasterizer::draw_line(int x0, int y0, int x1, int y1, Color color) {
-    /* Bresenham's line algorithm */
-    int dx = std::abs(x1 - x0);
-    int dy = std::abs(y1 - y0);
+    /* midpoint line algorithm - incremental variant */
+    int dx = x1 - x0;
+    int dy = y1 - y0;
 
-    int sx = (x0 < x1) ? 1 : -1;
-    int sy = (y0 < y1) ? 1 : -1;
+    int step_x = (dx >= 0) ? 1 : -1;
+    int step_y = (dy >= 0) ? 1 : -1;
 
-    int err = dx - dy;
+    dx = std::abs(dx);
+    dy = std::abs(dy);
 
-    while (true) {
-        framebuffer->set_pixel(x0, y0, color);
+    framebuffer->set_pixel(x0, y0, color);
 
-        if (x0 == x1 && y0 == y1) {
-            break;
+    if (dx >= dy) {
+        /* x is the driving axis */
+        int d = 2 * dy - dx;
+        int incr_e = 2 * dy;
+        int incr_ne = 2 * (dy - dx);
+
+        while (x0 != x1) {
+            if (d <= 0) {
+                d += incr_e;
+            } else {
+                d += incr_ne;
+                y0 += step_y;
+            }
+            x0 += step_x;
+            framebuffer->set_pixel(x0, y0, color);
         }
+    } else {
+        /* y is the driving axis */
+        int d = 2 * dx - dy;
+        int incr_e = 2 * dx;
+        int incr_ne = 2 * (dx - dy);
 
-        int e2 = 2 * err;
-
-        if (e2 > -dy) {
-            err -= dy;
-            x0 += sx;
-        }
-
-        if (e2 < dx) {
-            err += dx;
-            y0 += sy;
+        while (y0 != y1) {
+            if (d <= 0) {
+                d += incr_e;
+            } else {
+                d += incr_ne;
+                x0 += step_x;
+            }
+            y0 += step_y;
+            framebuffer->set_pixel(x0, y0, color);
         }
     }
 }
