@@ -4,6 +4,7 @@
 #include "pipeline/rasterizer.h"
 #include "pipeline/vertex_processor.h"
 #include "pipeline/clipper.h"
+#include "pipeline/fragment_processor.h"
 #include <iostream>
 
 /* helper to convert VertexOutput to ClipVertex */
@@ -67,9 +68,34 @@ int main() {
 
     Clipper clipper;
 
+    FragmentProcessor fragment_processor;
+    fragment_processor.set_camera_position(camera.get_position());
+    fragment_processor.set_ambient_light(Color(0.1f, 0.1f, 0.1f, 1.0f));
+
+    /* add a directional light */
+    Light sun;
+    sun.type = LightType::DIRECTIONAL;
+    sun.direction = Vec3(0.0f, 0.0f, -1.0f);  /* light shining towards -z (into the scene) */
+    sun.color = Color(1.0f, 1.0f, 1.0f, 1.0f);
+    sun.intensity = 1.0f;
+    fragment_processor.add_light(sun);
+
+    /* set material */
+    Material mat;
+    mat.ambient = Color(0.2f, 0.2f, 0.2f, 1.0f);
+    mat.diffuse = Color(1.0f, 1.0f, 1.0f, 1.0f);
+    mat.specular = Color(0.5f, 0.5f, 0.5f, 1.0f);
+    mat.shininess = 32.0f;
+    fragment_processor.set_material(mat);
+
     Rasterizer rasterizer;
     rasterizer.set_framebuffer(&framebuffer);
     rasterizer.set_backface_culling(false);  /* disable for testing */
+
+    /* set fragment shader */
+    rasterizer.set_fragment_shader([&](const Fragment& frag) {
+        return fragment_processor.process_fragment(frag);
+    });
 
     /* clear framebuffer */
     framebuffer.clear(Color(0.1f, 0.1f, 0.2f, 1.0f));
