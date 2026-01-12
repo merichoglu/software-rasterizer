@@ -14,6 +14,7 @@ set(PIPELINE_SOURCES
     src/pipeline/fragment_processor.cpp
     src/pipeline/rasterizer.cpp
     src/pipeline/clipper.cpp
+    src/pipeline/shadow_map.cpp
 )
 
 set(CORE_SOURCES
@@ -22,6 +23,7 @@ set(CORE_SOURCES
     src/model_loader.cpp
     src/output.cpp
     src/texture.cpp
+    src/scene.cpp
 )
 
 set(ALL_SOURCES

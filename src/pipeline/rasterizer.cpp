@@ -7,6 +7,10 @@ Rasterizer::Rasterizer() {
     fragment_shader = nullptr;
     wireframe_mode = false;
     backface_culling = true;
+    blend_mode = BlendMode::NONE;
+    depth_write = true;
+    num_threads = std::thread::hardware_concurrency();
+    if (num_threads == 0) num_threads = 4;
 }
 
 void Rasterizer::set_framebuffer(FrameBuffer* fb) {
@@ -23,6 +27,38 @@ void Rasterizer::set_wireframe_mode(bool enabled) {
 
 void Rasterizer::set_backface_culling(bool enabled) {
     backface_culling = enabled;
+}
+
+void Rasterizer::set_blend_mode(BlendMode mode) {
+    blend_mode = mode;
+}
+
+void Rasterizer::set_depth_write(bool enabled) {
+    depth_write = enabled;
+}
+
+void Rasterizer::set_num_threads(int threads) {
+    if (threads <= 0) {
+        num_threads = std::thread::hardware_concurrency();
+        if (num_threads == 0) num_threads = 4;
+    } else {
+        num_threads = threads;
+    }
+}
+
+void Rasterizer::write_pixel_safe(int x, int y, float depth, const Color& color) {
+    std::lock_guard<std::mutex> lock(framebuffer_mutex);
+    float current_depth = framebuffer->get_depth(x, y);
+    if (depth < current_depth) {
+        if (blend_mode == BlendMode::NONE) {
+            framebuffer->set_pixel(x, y, color);
+        } else {
+            framebuffer->set_pixel_blended(x, y, color, blend_mode);
+        }
+        if (depth_write) {
+            framebuffer->set_depth(x, y, depth);
+        }
+    }
 }
 
 float Rasterizer::edge_function(Vec2 a, Vec2 b, Vec2 c) {
@@ -111,8 +147,9 @@ void Rasterizer::draw_triangle(const RasterVertex& v0, const RasterVertex& v1, c
                 /* interpolate depth */
                 float depth = w0 * v0.position.z + w1 * v1.position.z + w2 * v2.position.z;
 
-                /* depth test */
-                if (framebuffer->depth_test(x, y, depth)) {
+                /* depth test - for blending, still test but may not write */
+                float current_depth = framebuffer->get_depth(x, y);
+                if (depth < current_depth) {
                     /* create fragment with interpolated attributes */
                     Vec3 bary = Vec3(w0, w1, w2);
                     Vec3 screen_pos = Vec3(x, y, depth);
@@ -126,8 +163,17 @@ void Rasterizer::draw_triangle(const RasterVertex& v0, const RasterVertex& v1, c
                         color = frag.color;
                     }
 
-                    /* write to framebuffer */
-                    framebuffer->set_pixel(x, y, color);
+                    /* write to framebuffer with blending */
+                    if (blend_mode == BlendMode::NONE) {
+                        framebuffer->set_pixel(x, y, color);
+                    } else {
+                        framebuffer->set_pixel_blended(x, y, color, blend_mode);
+                    }
+
+                    /* update depth buffer if depth writing is enabled */
+                    if (depth_write) {
+                        framebuffer->set_depth(x, y, depth);
+                    }
                 }
             }
         }
@@ -179,5 +225,93 @@ void Rasterizer::draw_line(int x0, int y0, int x1, int y1, Color color) {
             y0 += step_y;
             framebuffer->set_pixel(x0, y0, color);
         }
+    }
+}
+
+void Rasterizer::draw_triangles_parallel(const std::vector<RasterVertex>& vertices) {
+    if (framebuffer == nullptr || vertices.size() < 3) {
+        return;
+    }
+
+    size_t num_triangles = vertices.size() / 3;
+    std::atomic<size_t> triangle_index(0);
+
+    auto worker = [&]() {
+        while (true) {
+            size_t idx = triangle_index.fetch_add(1);
+            if (idx >= num_triangles) break;
+
+            size_t base = idx * 3;
+            const RasterVertex& v0 = vertices[base];
+            const RasterVertex& v1 = vertices[base + 1];
+            const RasterVertex& v2 = vertices[base + 2];
+
+            /* get screen positions */
+            Vec2 p0 = Vec2(v0.position.x, v0.position.y);
+            Vec2 p1 = Vec2(v1.position.x, v1.position.y);
+            Vec2 p2 = Vec2(v2.position.x, v2.position.y);
+
+            /* calculate signed area */
+            float area = edge_function(p0, p1, p2);
+
+            /* backface culling */
+            if (backface_culling && area < 0) continue;
+
+            /* degenerate triangle check */
+            if (std::abs(area) < 0.0001f) continue;
+
+            /* compute bounding box */
+            int min_x = static_cast<int>(std::floor(std::min({p0.x, p1.x, p2.x})));
+            int min_y = static_cast<int>(std::floor(std::min({p0.y, p1.y, p2.y})));
+            int max_x = static_cast<int>(std::ceil(std::max({p0.x, p1.x, p2.x})));
+            int max_y = static_cast<int>(std::ceil(std::max({p0.y, p1.y, p2.y})));
+
+            /* clip to screen */
+            min_x = std::max(min_x, 0);
+            min_y = std::max(min_y, 0);
+            max_x = std::min(max_x, framebuffer->get_width() - 1);
+            max_y = std::min(max_y, framebuffer->get_height() - 1);
+
+            float inv_area = 1.0f / area;
+
+            /* rasterize */
+            for (int y = min_y; y <= max_y; y++) {
+                for (int x = min_x; x <= max_x; x++) {
+                    Vec2 p = Vec2(x + 0.5f, y + 0.5f);
+
+                    float w0 = edge_function(p1, p2, p) * inv_area;
+                    float w1 = edge_function(p2, p0, p) * inv_area;
+                    float w2 = edge_function(p0, p1, p) * inv_area;
+
+                    if (w0 >= 0 && w1 >= 0 && w2 >= 0) {
+                        float depth = w0 * v0.position.z + w1 * v1.position.z + w2 * v2.position.z;
+
+                        Vec3 bary = Vec3(w0, w1, w2);
+                        Vec3 screen_pos = Vec3(x, y, depth);
+                        Fragment frag = interpolate_fragment(bary, v0, v1, v2, screen_pos);
+
+                        Color color;
+                        if (fragment_shader) {
+                            color = fragment_shader(frag);
+                        } else {
+                            color = frag.color;
+                        }
+
+                        write_pixel_safe(x, y, depth, color);
+                    }
+                }
+            }
+        }
+    };
+
+    /* launch worker threads */
+    std::vector<std::thread> threads;
+    for (int i = 0; i < num_threads; i++) {
+        threads.emplace_back(worker);
+    }
+
+    /* wait for all threads to complete */
+    for (auto& t : threads) {
+        t.join();
     }
 }

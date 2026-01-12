@@ -3,6 +3,14 @@
 #include "math/vector.h"
 #include <vector>
 
+/* blend modes for alpha compositing */
+enum class BlendMode {
+    NONE,           /* no blending, overwrite */
+    ALPHA,          /* standard alpha blending: src * alpha + dst * (1 - alpha) */
+    ADDITIVE,       /* additive blending: src + dst */
+    MULTIPLY        /* multiply blending: src * dst */
+};
+
 class FrameBuffer {
     private:
         int width;
@@ -22,6 +30,9 @@ class FrameBuffer {
 
         /* set pixel color at (x, y) */
         void set_pixel(int x, int y, Color color);
+
+        /* set pixel with blending */
+        void set_pixel_blended(int x, int y, Color color, BlendMode mode);
 
         /* get pixel color at (x, y) */
         Color get_pixel(int x, int y);

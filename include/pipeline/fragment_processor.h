@@ -2,7 +2,10 @@
 
 #include "math/vector.h"
 #include "pipeline/rasterizer.h"
+#include "pipeline/shadow_map.h"
+#include "texture.h"
 #include <vector>
+#include <memory>
 
 /* light types */
 enum class LightType {
@@ -49,11 +52,19 @@ struct Material {
     Color specular;         /* specular reflectance */
     float shininess;        /* specular exponent */
 
+    /* texture maps (nullptr if not used) */
+    Texture* diffuse_map;   /* diffuse/albedo texture */
+    Texture* specular_map;  /* specular intensity texture */
+    Texture* normal_map;    /* normal map (future use) */
+
     Material() :
         ambient(0.2f, 0.2f, 0.2f, 1.0f),
         diffuse(0.8f, 0.8f, 0.8f, 1.0f),
         specular(1.0f, 1.0f, 1.0f, 1.0f),
-        shininess(32.0f)
+        shininess(32.0f),
+        diffuse_map(nullptr),
+        specular_map(nullptr),
+        normal_map(nullptr)
     {}
 };
 
@@ -63,9 +74,11 @@ class FragmentProcessor {
         Material material;
         Color ambient_light;
         Vec3 camera_position;
+        ShadowMap* shadow_map;
+        bool shadows_enabled;
 
         /* calculate contribution from a single light */
-        Color calculate_light(const Light& light, Vec3 world_pos, Vec3 normal, Vec3 view_dir);
+        Color calculate_light(const Light& light, Vec3 world_pos, Vec3 normal, Vec3 view_dir, Color spec_color, float shadow);
 
         /* attenuation calculation for point/spot lights */
         float calculate_attenuation(const Light& light, float distance);
@@ -84,6 +97,10 @@ class FragmentProcessor {
 
         /* set camera position for specular calculations */
         void set_camera_position(Vec3 position);
+
+        /* shadow map management */
+        void set_shadow_map(ShadowMap* map);
+        void enable_shadows(bool enable);
 
         /* process a fragment and return final color (fragment shader) */
         Color process_fragment(const Fragment& fragment);

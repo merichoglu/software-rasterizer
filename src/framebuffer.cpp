@@ -1,4 +1,5 @@
 #include "framebuffer.h"
+#include <algorithm>
 
 FrameBuffer::FrameBuffer(int i_width, int i_height) {
     width = i_width;
@@ -27,6 +28,55 @@ void FrameBuffer::set_pixel(int x, int y, Color color) {
     }
     int index = y * width + x;
     color_buffer[index] = color;
+}
+
+void FrameBuffer::set_pixel_blended(int x, int y, Color color, BlendMode mode) {
+    if (x < 0 || x >= width || y < 0 || y >= height) {
+        return;
+    }
+    int index = y * width + x;
+
+    if (mode == BlendMode::NONE) {
+        color_buffer[index] = color;
+        return;
+    }
+
+    Color dst = color_buffer[index];
+    Color result;
+
+    switch (mode) {
+        case BlendMode::ALPHA: {
+            /* standard alpha blending: src * alpha + dst * (1 - alpha) */
+            float alpha = color.a;
+            float inv_alpha = 1.0f - alpha;
+            result.r = color.r * alpha + dst.r * inv_alpha;
+            result.g = color.g * alpha + dst.g * inv_alpha;
+            result.b = color.b * alpha + dst.b * inv_alpha;
+            result.a = alpha + dst.a * inv_alpha;
+            break;
+        }
+        case BlendMode::ADDITIVE: {
+            /* additive blending: src + dst */
+            result.r = std::min(color.r + dst.r, 1.0f);
+            result.g = std::min(color.g + dst.g, 1.0f);
+            result.b = std::min(color.b + dst.b, 1.0f);
+            result.a = std::min(color.a + dst.a, 1.0f);
+            break;
+        }
+        case BlendMode::MULTIPLY: {
+            /* multiply blending: src * dst */
+            result.r = color.r * dst.r;
+            result.g = color.g * dst.g;
+            result.b = color.b * dst.b;
+            result.a = color.a * dst.a;
+            break;
+        }
+        default:
+            result = color;
+            break;
+    }
+
+    color_buffer[index] = result;
 }
 
 Color FrameBuffer::get_pixel(int x, int y) {

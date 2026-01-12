@@ -3,6 +3,10 @@
 #include "math/vector.h"
 #include "framebuffer.h"
 #include <functional>
+#include <vector>
+#include <thread>
+#include <mutex>
+#include <atomic>
 
 /* vertex data for rasterization (screen space) */
 struct RasterVertex {
@@ -31,12 +35,19 @@ class Rasterizer {
         FragmentShader fragment_shader;
         bool wireframe_mode;
         bool backface_culling;
+        BlendMode blend_mode;
+        bool depth_write;
+        int num_threads;
+        std::mutex framebuffer_mutex;
 
         /* calculate edge function for point against edge */
         float edge_function(Vec2 a, Vec2 b, Vec2 c);
 
         /* interpolate fragment attributes using barycentric coordinates */
         Fragment interpolate_fragment(Vec3 bary, const RasterVertex& v0, const RasterVertex& v1, const RasterVertex& v2, Vec3 screen_pos);
+
+        /* thread-safe pixel write */
+        void write_pixel_safe(int x, int y, float depth, const Color& color);
 
     public:
         /* constructor */
@@ -54,8 +65,20 @@ class Rasterizer {
         /* enable/disable backface culling */
         void set_backface_culling(bool enabled);
 
+        /* set blend mode for alpha blending */
+        void set_blend_mode(BlendMode mode);
+
+        /* enable/disable depth writing (disable for transparent objects) */
+        void set_depth_write(bool enabled);
+
+        /* set number of threads for parallel rendering (0 = auto-detect) */
+        void set_num_threads(int threads);
+
         /* rasterize a single triangle */
         void draw_triangle(const RasterVertex& v0, const RasterVertex& v1, const RasterVertex& v2);
+
+        /* rasterize multiple triangles in parallel */
+        void draw_triangles_parallel(const std::vector<RasterVertex>& vertices);
 
         /* draw a line between two points (for wireframe) */
         void draw_line(int x0, int y0, int x1, int y1, Color color);

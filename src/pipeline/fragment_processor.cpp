@@ -1,10 +1,12 @@
 #include "pipeline/fragment_processor.h"
 #include <algorithm>
 
-FragmentProcessor::FragmentProcessor() {
-    ambient_light = Color(0.1f, 0.1f, 0.1f, 1.0f);
-    camera_position = Vec3(0.0f, 0.0f, 0.0f);
-}
+FragmentProcessor::FragmentProcessor() :
+    ambient_light(0.1f, 0.1f, 0.1f, 1.0f),
+    camera_position(0.0f),
+    shadow_map(nullptr),
+    shadows_enabled(false)
+{}
 
 void FragmentProcessor::add_light(const Light& light) {
     lights.push_back(light);
@@ -26,6 +28,14 @@ void FragmentProcessor::set_camera_position(Vec3 position) {
     camera_position = position;
 }
 
+void FragmentProcessor::set_shadow_map(ShadowMap* map) {
+    shadow_map = map;
+}
+
+void FragmentProcessor::enable_shadows(bool enable) {
+    shadows_enabled = enable;
+}
+
 Color FragmentProcessor::process_fragment(const Fragment& fragment) {
     return shade_phong(fragment);
 }
@@ -41,18 +51,35 @@ Color FragmentProcessor::shade_phong(const Fragment& fragment) {
     /* get surface normal (interpolated and normalized) */
     Vec3 normal = glm::normalize(fragment.normal);
 
-    /* get base color from vertex color or material */
-    Color base_color = fragment.color * material.diffuse;
+    /* get base color: sample diffuse texture if available, otherwise use vertex color * material */
+    Color base_color;
+    if (material.diffuse_map && material.diffuse_map->is_valid()) {
+        base_color = material.diffuse_map->sample(fragment.tex_coord) * fragment.color;
+    } else {
+        base_color = fragment.color * material.diffuse;
+    }
+
+    /* get specular intensity from texture if available */
+    Color spec_color = material.specular;
+    if (material.specular_map && material.specular_map->is_valid()) {
+        spec_color = material.specular_map->sample(fragment.tex_coord);
+    }
+
+    /* calculate shadow factor (0 = fully lit, 1 = fully shadowed) */
+    float shadow = 0.0f;
+    if (shadows_enabled && shadow_map) {
+        shadow = shadow_map->sample_shadow_pcf(fragment.world_pos, 3);
+    }
 
     /* view direction (from fragment to camera) */
     Vec3 view_dir = glm::normalize(camera_position - fragment.world_pos);
 
-    /* start with ambient contribution */
+    /* start with ambient contribution (not affected by shadows) */
     Color result = ambient_light * material.ambient * base_color;
 
     /* add contribution from each light */
     for (const Light& light : lights) {
-        Color light_contrib = calculate_light(light, fragment.world_pos, normal, view_dir);
+        Color light_contrib = calculate_light(light, fragment.world_pos, normal, view_dir, spec_color, shadow);
         result = result + light_contrib * base_color;
     }
 
@@ -60,12 +87,13 @@ Color FragmentProcessor::shade_phong(const Fragment& fragment) {
     result.r = std::clamp(result.r, 0.0f, 1.0f);
     result.g = std::clamp(result.g, 0.0f, 1.0f);
     result.b = std::clamp(result.b, 0.0f, 1.0f);
-    result.a = base_color.a;
+    /* preserve material alpha for transparency */
+    result.a = material.diffuse.a;
 
     return result;
 }
 
-Color FragmentProcessor::calculate_light(const Light& light, Vec3 world_pos, Vec3 normal, Vec3 view_dir) {
+Color FragmentProcessor::calculate_light(const Light& light, Vec3 world_pos, Vec3 normal, Vec3 view_dir, Color spec_color, float shadow) {
     Vec3 light_dir;
     float attenuation = 1.0f;
 
@@ -106,10 +134,13 @@ Color FragmentProcessor::calculate_light(const Light& light, Vec3 world_pos, Vec
     Vec3 halfway_dir = glm::normalize(light_dir + view_dir);
     float n_dot_h = std::max(glm::dot(normal, halfway_dir), 0.0f);
     float spec = std::pow(n_dot_h, material.shininess);
-    Color specular = material.specular * spec;
+    Color specular = spec_color * spec;
+
+    /* apply shadow (reduces diffuse and specular, not ambient) */
+    float light_factor = 1.0f - shadow;
 
     /* combine */
-    Color result = (diffuse + specular) * light.color * light.intensity * attenuation;
+    Color result = (diffuse + specular) * light.color * light.intensity * attenuation * light_factor;
 
     return result;
 }
