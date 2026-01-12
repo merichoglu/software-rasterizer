@@ -7,6 +7,7 @@ A complete 3D graphics rendering pipeline implemented from scratch in C++. This 
 ## Features
 
 ### Rendering Pipeline
+
 - **Complete 3D Pipeline**: Model → Vertex Processing → Clipping → Rasterization → Fragment Processing → Framebuffer
 - **Perspective Projection**: Configurable FOV, aspect ratio, and near/far planes
 - **Frustum Clipping**: Sutherland-Hodgman algorithm for all 6 frustum planes
@@ -14,18 +15,21 @@ A complete 3D graphics rendering pipeline implemented from scratch in C++. This 
 - **Depth Testing**: Z-buffer based occlusion handling
 
 ### Lighting & Shading
+
 - **Blinn-Phong Lighting Model**: Ambient, diffuse, and specular components
 - **Multiple Light Types**: Directional, point, and spot lights with attenuation
 - **Shadow Mapping**: Real-time shadows with PCF (Percentage Closer Filtering)
 - **Material System**: Configurable ambient, diffuse, specular properties and shininess
 
 ### Texturing
+
 - **Texture Mapping**: Diffuse and specular texture support
 - **Filtering Modes**: Nearest-neighbor and bilinear interpolation
 - **Wrap Modes**: Repeat, clamp-to-edge, and mirrored repeat
 - **Multiple Format Support**: JPG, PNG via stb_image
 
 ### Advanced Features
+
 - **Alpha Blending**: Standard, additive, and multiply blend modes
 - **Backface Culling**: Performance optimization
 - **Parallel Rendering**: Multi-threaded triangle rasterization
@@ -55,6 +59,7 @@ software-rasterizer/
 ## Building
 
 ### Requirements
+
 - **C++17** compatible compiler
 - **CMake 3.16+**
 - **GLM** (OpenGL Mathematics library)
@@ -117,6 +122,7 @@ Output (PPM/PNG image)
 ```
 
 ### Key Algorithms
+
 - **Perspective Projection**: 4×4 projection matrix with perspective divide
 - **Barycentric Coordinates**: Attribute interpolation across triangles
 - **Edge Functions**: Fast point-in-triangle testing
@@ -126,6 +132,7 @@ Output (PPM/PNG image)
 - **PCF Filtering**: Soft shadow edges (4-tap sampling)
 
 ### Performance Optimizations
+
 - Parallel triangle rendering with configurable thread count
 - Backface culling for early rejection
 - Frustum clipping for out-of-view geometry
