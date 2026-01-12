@@ -34,7 +34,6 @@ compile_commands.json
 output/*.ppm
 output/*.tga
 output/*.bmp
-output/*.png
 
 # macOS
 .DS_Store
